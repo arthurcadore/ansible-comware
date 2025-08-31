@@ -11,6 +11,7 @@ services:
       - "./playbooks:/playbooks"
       - "./config/hosts.conf:/etc/hosts"
       - "./logs:/var/log/ansible"
+      - "./shared:/shared"
     environment:
       - ANSIBLE_HOST_KEY_CHECKING=False
       - ANSIBLE_PERSISTENT_LOG_MESSAGES=True
