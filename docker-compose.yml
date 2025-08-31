@@ -1,0 +1,19 @@
+services:
+  ansiblecomware:
+    container_name: ansiblecomware
+    image: arthurcadore/my-ansiblecomware:1.0.0
+    build:
+      context: .
+      dockerfile: ./docker/Dockerfile
+    volumes:
+      - "./scripts/entrypoint.sh:/etc/entrypoint.sh"
+      - "./inventory:/inventory"
+      - "./playbooks:/playbooks"
+      - "./config/hosts.conf:/etc/hosts"
+      - "./logs:/var/log/ansible"
+    environment:
+      - ANSIBLE_HOST_KEY_CHECKING=False
+      - ANSIBLE_PERSISTENT_LOG_MESSAGES=True
+      - ANSIBLE_LOG_PATH=/var/log/ansible/ansible.log
+      - ANSIBLE_SSH_ARGS="-o HostKeyAlgorithms=+ssh-rsa -o PubkeyAcceptedKeyTypes=+ssh-rsa"
+    user: '0'
