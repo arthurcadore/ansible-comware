@@ -18,3 +18,5 @@ ansible-playbook -v -i /inventory/hosts.yml /playbooks/modules/lldp.yml
 # Execute a neighbors test
 ansible-playbook -v -i /inventory/hosts.yml /playbooks/modules/neighbors.yml
 
+# Execute a snmp community test
+ansible-playbook -v -i /inventory/hosts.yml /playbooks/modules/snmp_community.yml
