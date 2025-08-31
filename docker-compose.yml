@@ -2,9 +2,6 @@ services:
   ansiblecomware:
     container_name: ansiblecomware
     image: arthurcadore/my-ansiblecomware:1.0.0
-    build:
-      context: .
-      dockerfile: ./docker/Dockerfile
     volumes:
       - "./scripts/entrypoint.sh:/etc/entrypoint.sh"
       - "./inventory:/inventory"
