@@ -1,0 +1,34 @@
+---
+
+- name: Comware LACP Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Configure LACP global settings
+      comware_lacp:
+        priorityID: 8
+        sysmac: 2-2-2
+        state: present
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: lacp_config
+
+    - name: Verify LACP configuration
+      debug:
+        var: lacp_config
+
+    - name: Remove LACP configuration
+      comware_lacp:
+        priorityID: 8
+        sysmac: 2-2-2
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: lacp_removal
+
+    - name: Verify LACP removal
+      debug:
+        var: lacp_removal

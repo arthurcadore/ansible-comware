@@ -1,0 +1,151 @@
+---
+- name: Device Startup Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+  
+  # This playbook manages device startup configurations and OS images
+  # WARNING: Changing startup configurations can affect device operation
+  # Always verify the operation in a test environment first
+
+  vars:
+    # Startup configuration settings
+    startup_config:
+      # Boot system files (bootsys method)
+      boot: "flash:/s9850_6850-cmw710-boot-r6555p01.bin"
+      system: "flash:/s9850_6850-cmw710-system-r6555p01.bin"
+      patch: "flash:/s9850_6850-cmw710-system-patch-r6555p01h31.bin"
+      
+      # IPE package for installation
+      ipe_package: "flash:/s9850-h3c.ipe"
+      
+      # Next startup configuration file
+      next_startup_file: "flash:/startup.cfg"
+      
+      # Configuration file to display
+      config_file: "flash:/startup.cfg"
+      local_save_path: "/tmp/{{ inventory_hostname }}_startup.cfg"
+    
+    # Set to true to apply changes
+    apply_changes: false
+
+  tasks:
+    - name: Validate startup configuration parameters
+      assert:
+        that:
+          - not apply_changes | bool or (startup_config.boot is defined and startup_config.boot | length > 0) or (startup_config.ipe_package is defined and startup_config.ipe_package | length > 0)
+          - not (startup_config.boot is defined and startup_config.ipe_package is defined and startup_config.boot | length > 0 and startup_config.ipe_package | length > 0)
+        fail_msg: >
+          Invalid startup configuration. Check:
+          - At least one of 'boot' or 'ipe_package' must be specified when apply_changes is true
+          - 'boot' and 'ipe_package' cannot be used together
+      tags: always
+
+    - name: Display startup configuration plan
+      debug:
+        msg: |
+          Startup Configuration Plan:
+          - Device: {{ inventory_hostname }}
+          - Changes Allowed: {{ apply_changes | ternary('YES', 'NO (set apply_changes: true)') }}
+          {% if startup_config.boot is defined and startup_config.boot | length > 0 %}
+          - Boot System Configuration:
+            - Boot: {{ startup_config.boot }}
+            - System: {{ startup_config.system }}
+            {% if startup_config.patch | length %}- Patch: {{ startup_config.patch }}{% endif %}
+          {% endif %}
+          {% if startup_config.ipe_package is defined and startup_config.ipe_package | length > 0 %}
+          - IPE Package: {{ startup_config.ipe_package }}
+          {% endif %}
+          - Next Startup File: {{ startup_config.next_startup_file }}
+          - Config File to Display: {{ startup_config.config_file }}
+          - Local Save Path: {{ startup_config.local_save_path }}
+      changed_when: false
+      tags: always
+
+    - name: Configure Boot System (bootsys method)
+      when: 
+        - apply_changes | bool
+        - startup_config.boot is defined and startup_config.boot | length > 0
+      comware_startup:
+        boot: "{{ startup_config.boot }}"
+        system: "{{ startup_config.system }}"
+        patch: "{{ startup_config.patch | default(omit) }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: boot_config
+      no_log: true
+      tags: config
+
+    - name: Install OS using IPE package
+      when: 
+        - apply_changes | bool
+        - startup_config.ipe_package is defined and startup_config.ipe_package | length > 0
+      comware_startup:
+        ipe_package: "{{ startup_config.ipe_package }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: ipe_install
+      no_log: true
+      tags: config
+
+    - name: Configure next startup configuration file
+      when: 
+        - apply_changes | bool
+        - startup_config.next_startup_file is defined and startup_config.next_startup_file | length > 0
+      comware_startup:
+        nextstartupfile: "{{ startup_config.next_startup_file }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: startup_file_config
+      no_log: true
+      tags: config
+
+    - name: Save current startup configuration to local file
+      when: 
+        - startup_config.config_file is defined 
+        - startup_config.config_file | length > 0
+        - startup_config.local_save_path is defined
+      comware_startup:
+        filename: "{{ startup_config.config_file }}"
+        show_file: "{{ startup_config.local_save_path }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: save_config
+      no_log: true
+      tags: backup
+
+    - name: Display startup configuration result
+      when: apply_changes | bool
+      debug:
+        msg: |
+          Startup Configuration Result:
+          - Boot System Configured: {{ boot_config is defined and boot_config is changed | default(false) | ternary('YES', 'NO') }}
+          - IPE Installation: {{ ipe_install is defined and ipe_install is changed | default(false) | ternary('YES', 'NO') }}
+          - Next Startup File: {{ startup_config.next_startup_file }}
+          - Config File Saved: {{ save_config is defined and save_config.changed | default(false) | ternary('YES', 'NO') }}
+      changed_when: 
+        - (boot_config is defined and boot_config is changed) or 
+          (ipe_install is defined and ipe_install is changed) or
+          (startup_file_config is defined and startup_file_config is changed)
+      tags: always
+
+    - name: Verify startup configuration (dry-run)
+      when: not apply_changes | bool
+      debug:
+        msg: >
+          This is a dry-run. No changes were made.
+          Set apply_changes: true to apply the startup configuration.
+      changed_when: false
+      tags: always
+
+    - name: Show local saved configuration path
+      when: 
+        - not apply_changes | bool
+        - save_config is defined and save_config.changed | default(false)
+      debug:
+        msg: "Startup configuration saved to: {{ startup_config.local_save_path }}"
+      tags: backup

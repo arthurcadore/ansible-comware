@@ -1,0 +1,14 @@
+---
+
+- name: Comware FTP Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Enable FTP service
+      comware_ftp:
+        state: enable
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"

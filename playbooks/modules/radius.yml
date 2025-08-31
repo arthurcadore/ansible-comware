@@ -1,0 +1,50 @@
+---
+- name: Configure RADIUS Authentication
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  vars:
+    radius_scheme: "test"
+    radius_servers:
+      - host: "192.168.1.100"
+        port: 1812
+        key: "radius_key_123"
+      - host: "192.168.1.101"
+        port: 1812
+        key: "radius_key_123"
+
+  tasks:
+    - name: Configure RADIUS scheme
+      comware_radius:
+        radius_scheme: "{{ radius_scheme }}"
+        state: present
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: radius_config
+
+    - name: Verify RADIUS configuration
+      debug:
+        var: radius_config
+
+    - name: Display RADIUS configuration summary
+      debug:
+        msg: |
+          RADIUS Configuration:
+          - Scheme: {{ radius_scheme }}
+          - Primary Server: {{ radius_servers[0].host }}:{{ radius_servers[0].port }}
+          - Secondary Server: {{ radius_servers[1].host }}:{{ radius_servers[1].port }}
+
+    - name: Remove RADIUS configuration
+      comware_radius:
+        radius_scheme: "{{ radius_scheme }}"
+        state: default
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: radius_removal
+
+    - name: Verify RADIUS removal
+      debug:
+        var: radius_removal

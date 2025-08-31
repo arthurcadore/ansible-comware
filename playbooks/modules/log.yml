@@ -1,0 +1,67 @@
+---
+- name: Comware Log Management
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  vars:
+    diag_dir: "flash:/diaglog"
+    service_dir: "/shared/diaglog"
+
+  tasks:
+    - name: Get diagnostic information to the file server
+      comware_log:
+        diag_dir: "{{ diag_dir }}"
+        service_dir: "{{ service_dir }}"
+        ftpupload: true
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: diag_collect
+
+    - name: Upload diagnostic information via FTP
+      comware_log:
+        state: loadtoserver
+        servertype: ftp
+        server_hostname: 192.168.1.199
+        server_name: fc
+        server_pwd: 111111
+        diag_dir: "{{ diag_dir }}"
+        service_dir: "{{ service_dir }}"
+        dst_dir: "flash:/"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: ftp_upload
+
+    - name: Upload diagnostic information via SCP
+      comware_log:
+        state: loadtoserver
+        servertype: scp
+        server_hostname: 192.168.1.185
+        server_name: h3c
+        server_pwd: h3c
+        diag_dir: "{{ diag_dir }}"
+        service_dir: "{{ service_dir }}"
+        dst_dir: "flash:/"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: scp_upload
+
+    - name: Delete diagnostic information from device
+      comware_log:
+        diag_dir: "{{ diag_dir }}"
+        state: default
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: diag_delete
+
+    - name: Show operation results
+      debug:
+        msg:
+          - "Diagnostic collection: {{ diag_collect.msg | default('N/A') }}"
+          - "FTP upload: {{ ftp_upload.msg | default('N/A') }}"
+          - "SCP upload: {{ scp_upload.msg | default('N/A') }}"
+          - "Diagnostic deletion: {{ diag_delete.msg | default('N/A') }}"

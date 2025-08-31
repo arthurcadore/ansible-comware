@@ -1,0 +1,47 @@
+---
+- name: Comware NETCONF Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Configure NETCONF with protocol operation
+      comware_netconf:
+        source: all
+        operation: protocol-operation
+        opera_type: action
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: netconf_config
+
+    - name: Verify NETCONF configuration
+      debug:
+        var: netconf_config
+
+    - name: Remove NETCONF protocol operation configuration
+      comware_netconf:
+        source: all
+        operation: protocol-operation
+        opera_type: action
+        state: absent
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: netconf_removal
+
+    - name: Verify NETCONF removal
+      debug:
+        var: netconf_removal
+
+    - name: Configure NETCONF SOAP settings
+      comware_netconf:
+        soap: http
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: netconf_soap
+
+    - name: Verify NETCONF SOAP configuration
+      debug:
+        var: netconf_soap

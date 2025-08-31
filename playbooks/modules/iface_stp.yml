@@ -1,0 +1,34 @@
+---
+- name: Comware Interface STP Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Configure basic STP settings on interface
+      comware_iface_stp:
+        name: Ten-GigabitEthernet2/0/24
+        tc_restriction: true
+        transimit_limit: 200
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+
+    - name: Remove STP configuration from interface
+      comware_iface_stp:
+        name: Ten-GigabitEthernet2/0/24
+        state: default
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+
+    - name: Configure advanced STP settings on interface
+      comware_iface_stp:
+        name: Ten-GigabitEthernet2/0/25
+        edgedport: true
+        root: true
+        tc_restriction: true
+        transimit_limit: 200
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"

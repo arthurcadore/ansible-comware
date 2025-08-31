@@ -1,0 +1,209 @@
+---
+- name: Syslog Global Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+  
+  # This playbook manages global syslog settings on Comware devices
+  # Includes configuration for timestamps, log levels, and other syslog parameters
+
+  vars:
+    # Syslog global configuration
+    syslog_global:
+      # Timestamp format: boot, date, none
+      timestamps: "date"
+      
+      # Logging level: emergency, alert, critical, error, warning, notification, informational, debugging
+      level: "informational"
+      
+      # Source interface for syslog messages (optional)
+      source_interface: ""
+      
+      # Console logging settings
+      console:
+        enabled: true
+        level: "warning"  # Console log level (usually more restrictive)
+      
+      # Monitor (terminal) logging settings
+      monitor:
+        enabled: true
+        level: "informational"
+      
+      # Log buffer settings
+      logbuffer:
+        enabled: true
+        size: 1024  # Buffer size in KB
+        level: "informational"
+    
+    # Set to true to apply changes
+    apply_changes: false
+
+  tasks:
+    - name: Validate syslog parameters
+      assert:
+        that:
+          - syslog_global.timestamps in ['boot', 'date', 'none']
+          - syslog_global.level in ['emergency', 'alert', 'critical', 'error', 'warning', 'notification', 'informational', 'debugging']
+          - syslog_global.console.level in ['emergency', 'alert', 'critical', 'error', 'warning', 'notification', 'informational', 'debugging']
+          - syslog_global.monitor.level in ['emergency', 'alert', 'critical', 'error', 'warning', 'notification', 'informational', 'debugging']
+          - syslog_global.logbuffer.level in ['emergency', 'alert', 'critical', 'error', 'warning', 'notification', 'informational', 'debugging']
+          - syslog_global.logbuffer.size | int > 0
+        fail_msg: >
+          Invalid syslog parameters. Check:
+          - timestamps must be one of: boot, date, none
+          - level must be one of: emergency, alert, critical, error, warning, notification, informational, debugging
+          - console.level, monitor.level, and logbuffer.level must be valid log levels
+          - logbuffer.size must be greater than 0
+      tags: always
+
+    - name: Display syslog configuration plan
+      debug:
+        msg: |
+          Syslog Global Configuration Plan:
+          - Device: {{ inventory_hostname }}
+          - Changes Allowed: {{ apply_changes | ternary('YES', 'NO (set apply_changes: true)') }}
+          - Timestamps: {{ syslog_global.timestamps | upper }}
+          - Global Log Level: {{ syslog_global.level | upper }}
+          {% if syslog_global.source_interface | length > 0 %}
+          - Source Interface: {{ syslog_global.source_interface }}
+          {% else %}
+          - Source Interface: Not configured (uses default)
+          {% endif %}
+          
+          Console Logging:
+            - Status: {{ syslog_global.console.enabled | ternary('ENABLED', 'DISABLED') }}
+            - Level: {{ syslog_global.console.level | upper }}
+          
+          Monitor (Terminal) Logging:
+            - Status: {{ syslog_global.monitor.enabled | ternary('ENABLED', 'DISABLED') }}
+            - Level: {{ syslog_global.monitor.level | upper }}
+          
+          Log Buffer:
+            - Status: {{ syslog_global.logbuffer.enabled | ternary('ENABLED', 'DISABLED') }}
+            - Level: {{ syslog_global.logbuffer.level | upper }}
+            - Buffer Size: {{ syslog_global.logbuffer.size }} KB
+      changed_when: false
+      tags: always
+
+    - name: Configure global syslog settings
+      when: apply_changes | bool
+      comware_syslog_global:
+        timestamps: "{{ syslog_global.timestamps }}"
+        level: "{{ syslog_global.level }}"
+        source_interface: "{{ syslog_global.source_interface | default(omit) }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: syslog_config
+      no_log: true
+      tags: config
+
+    - name: Configure console logging
+      when: 
+        - apply_changes | bool
+        - syslog_global.console.enabled | bool
+      comware_syslog_console:
+        state: "present"
+        level: "{{ syslog_global.console.level }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: console_config
+      no_log: true
+      tags: config
+
+    - name: Disable console logging
+      when: 
+        - apply_changes | bool
+        - not syslog_global.console.enabled | bool
+      comware_syslog_console:
+        state: "absent"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: console_config_disable
+      no_log: true
+      tags: config
+
+    - name: Configure monitor (terminal) logging
+      when: 
+        - apply_changes | bool
+        - syslog_global.monitor.enabled | bool
+      comware_syslog_monitor:
+        state: "present"
+        level: "{{ syslog_global.monitor.level }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: monitor_config
+      no_log: true
+      tags: config
+
+    - name: Disable monitor (terminal) logging
+      when: 
+        - apply_changes | bool
+        - not syslog_global.monitor.enabled | bool
+      comware_syslog_monitor:
+        state: "absent"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: monitor_config_disable
+      no_log: true
+      tags: config
+
+    - name: Configure log buffer
+      when: 
+        - apply_changes | bool
+        - syslog_global.logbuffer.enabled | bool
+      comware_syslog_logbuffer:
+        state: "present"
+        level: "{{ syslog_global.logbuffer.level }}"
+        size: "{{ syslog_global.logbuffer.size }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: logbuffer_config
+      no_log: true
+      tags: config
+
+    - name: Disable log buffer
+      when: 
+        - apply_changes | bool
+        - not syslog_global.logbuffer.enabled | bool
+      comware_syslog_logbuffer:
+        state: "absent"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: logbuffer_config_disable
+      no_log: true
+      tags: config
+
+    - name: Display syslog configuration result
+      when: apply_changes | bool
+      debug:
+        msg: |
+          Syslog Configuration Result:
+          - Global Settings: {{ syslog_config is changed | ternary('CHANGED', 'OK') }}
+          - Console Logging: {{ console_config is defined and console_config is changed | ternary('CHANGED', console_config_disable is defined and console_config_disable is changed | ternary('CHANGED', 'OK')) }}
+          - Monitor Logging: {{ monitor_config is defined and monitor_config is changed | ternary('CHANGED', monitor_config_disable is defined and monitor_config_disable is changed | ternary('CHANGED', 'OK')) }}
+          - Log Buffer: {{ logbuffer_config is defined and logbuffer_config is changed | ternary('CHANGED', logbuffer_config_disable is defined and logbuffer_config_disable is changed | ternary('CHANGED', 'OK')) }}
+      changed_when: 
+        - syslog_config is changed or 
+          (console_config is defined and console_config is changed) or
+          (console_config_disable is defined and console_config_disable is changed) or
+          (monitor_config is defined and monitor_config is changed) or
+          (monitor_config_disable is defined and monitor_config_disable is changed) or
+          (logbuffer_config is defined and logbuffer_config is changed) or
+          (logbuffer_config_disable is defined and logbuffer_config_disable is changed)
+      tags: always
+
+    - name: Verify syslog configuration (dry-run)
+      when: not apply_changes | bool
+      debug:
+        msg: >
+          This is a dry-run. No changes were made.
+          Set apply_changes: true to apply the syslog configuration.
+      changed_when: false
+      tags: always

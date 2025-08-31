@@ -1,0 +1,29 @@
+---
+- name: Comware LLDP Neighbors Discovery
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Get LLDP neighbors information
+      comware_neighbors:
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: lldp_neighbors
+
+    - name: Display LLDP neighbors
+      debug:
+        var: lldp_neighbors.neighbors
+
+    - name: Save LLDP neighbors to file
+      copy:
+        content: "{{ lldp_neighbors.neighbors | to_nice_yaml }}"
+        dest: "/shared/{{ inventory_hostname }}_neighbors.yml"
+      delegate_to: localhost
+      when: lldp_neighbors.neighbors is defined
+
+    - name: Display summary of LLDP neighbors
+      debug:
+        msg: "Found {{ lldp_neighbors.neighbors | length }} LLDP neighbors on {{ inventory_hostname }}"
+      when: lldp_neighbors.neighbors is defined

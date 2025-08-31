@@ -1,0 +1,25 @@
+---
+- name: Comware BFD testing
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: config BFD
+      comware_bfd:
+        damp_max_wait_time: "100"
+        damp_init_wait_time: "10"
+        secondary: "8"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+
+    - name: delete BFD related
+      comware_bfd:
+        damp_max_wait_time: "100"
+        damp_init_wait_time: "10"
+        secondary: "8"
+        state: default
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"

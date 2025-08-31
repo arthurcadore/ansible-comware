@@ -1,0 +1,34 @@
+---
+
+- name: Comware License Management
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Install license file
+      comware_license:
+        license: 210235A1U6H1840000012020012114082102563.ak
+        slot: 1
+        state: present
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: license_install
+
+    - name: Verify license installation
+      debug:
+        var: license_install
+
+    - name: Remove license
+      comware_license:
+        license: 210235A1U6H1840000012020012114082102563.ak
+        slot: 1
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: license_removal
+
+    - name: Verify license removal
+      debug:
+        var: license_removal

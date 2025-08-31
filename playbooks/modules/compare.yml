@@ -1,0 +1,14 @@
+---
+- name: Comware Compare testing
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Compare configuration with SSH settings
+      comware_compare:
+        cmd: 'dis curr conf'
+        result: '/shared/example.conf'
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"

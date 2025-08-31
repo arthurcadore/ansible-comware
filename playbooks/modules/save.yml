@@ -1,0 +1,90 @@
+---
+- name: Device Configuration Save
+  hosts: all
+  gather_facts: no
+  connection: local
+  
+  # This playbook handles saving the running configuration to the startup configuration
+  # and can also save to a specific file in flash memory.
+  # WARNING: This will overwrite the target file if it already exists.
+
+  vars:
+    # Configuration file name (must end with .cfg and not contain any path)
+    config_file: "my_config.cfg"
+    # Set to true to actually perform the save operation
+    perform_save: false
+
+  tasks:
+    - name: Validate configuration file name
+      assert:
+        that:
+          - config_file is match('^[^/\\:*?"<>|]+\.cfg$')
+        fail_msg: >
+          Invalid configuration file name. Must be a simple filename ending with .cfg
+          and not contain any path components or invalid characters.
+      run_once: true
+
+    - name: Display save operation details
+      debug:
+        msg: |
+          Save Operation Details:
+          - Device: {{ inventory_hostname }}
+          - Save Allowed: {{ perform_save | ternary('YES', 'NO (set perform_save: true)') }}
+          - Target File: {{ config_file if config_file is defined else 'startup.cfg (default)' }}
+      changed_when: false
+
+    - name: Save running configuration to startup
+      when: perform_save | bool and config_file is not defined
+      comware_save:
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: save_result
+      no_log: true
+
+    - name: Save running configuration to specific file
+      when: perform_save | bool and config_file is defined
+      comware_save:
+        filename: "{{ config_file }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: save_result
+      no_log: true
+
+    - name: Display save operation result
+      when: perform_save | bool
+      debug:
+        msg: "Configuration saved successfully to {{ config_file if config_file is defined else 'startup.cfg' }}"
+      changed_when: save_result.changed
+
+    - name: Verify invalid filename handling
+      when: not perform_save | bool
+      block:
+        - name: Attempt to save with invalid filename (contains path)
+          comware_save:
+            filename: "invalid/path/config.cfg"
+            username: "{{ username }}"
+            password: "{{ password }}"
+            hostname: "{{ inventory_hostname }}"
+          register: invalid_path_result
+          ignore_errors: true
+          no_log: true
+
+        - name: Verify invalid filename was rejected
+          assert:
+            that:
+              - invalid_path_result.failed == true
+            success_msg: "Invalid filename was rejected (as expected)"
+            fail_msg: "Invalid filename was unexpectedly accepted"
+
+    - name: Display completion message
+      debug:
+        msg: >
+          Save operation completed.
+          {% if perform_save %}
+          Configuration was saved successfully.
+          {% else %}
+          No changes were made (perform_save is false).
+          {% endif %}
+      changed_when: false

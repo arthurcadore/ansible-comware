@@ -1,0 +1,58 @@
+---
+- name: Comware L2VPN Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Enable L2VPN globally
+      comware_l2vpn_global:
+        state: enabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: enable_l2vpn
+
+    - name: Verify L2VPN is enabled
+      assert:
+        that:
+          - "enable_l2vpn.end_state == 'enabled'"
+
+    - name: Verify L2VPN idempotency (enabled)
+      comware_l2vpn_global:
+        state: enabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: l2vpn_idempotent
+
+    - name: Verify idempotency results
+      assert:
+        that:
+          - "l2vpn_idempotent.changed == false"
+
+    - name: Disable L2VPN globally
+      comware_l2vpn_global:
+        state: disabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: disable_l2vpn
+
+    - name: Verify L2VPN is disabled
+      assert:
+        that:
+          - "disable_l2vpn.end_state == 'disabled'"
+
+    - name: Re-enable L2VPN globally
+      comware_l2vpn_global:
+        state: enabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: reenable_l2vpn
+
+    - name: Verify L2VPN is re-enabled
+      assert:
+        that:
+          - "reenable_l2vpn.end_state == 'enabled'"

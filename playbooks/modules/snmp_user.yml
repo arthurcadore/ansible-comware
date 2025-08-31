@@ -1,0 +1,154 @@
+---
+- name: SNMP User Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+  
+  # This playbook manages SNMP user configurations on Comware devices
+  # Supports both SNMPv2c and SNMPv3 user configurations
+  # WARNING: Passwords and keys are sensitive information. Handle with care.
+
+  vars:
+    # SNMP user configurations
+    snmp_users:
+      # SNMPv3 user with authentication and privacy (recommended)
+      - name: "admin_v3"
+        security_model: "v3"
+        user_group: "admin_group"
+        auth_protocol: "sha"  # sha, sha224, sha256, sha384, sha512, md5
+        auth_key: "ChangeMe123!"  # Should be at least 8 characters
+        priv_protocol: "aes128"  # des, 3des, aes128, aes192, aes256
+        priv_key: "ChangeMe123!"  # Should be at least 8 characters
+        state: "present"
+      
+      # SNMPv3 user with authentication only
+      - name: "monitor_v3"
+        security_model: "v3"
+        user_group: "readonly_group"
+        auth_protocol: "sha"
+        auth_key: "ChangeMe456!"
+        priv_protocol: ""  # Empty for no privacy
+        priv_key: ""
+        state: "present"
+      
+      # SNMPv2c user (less secure)
+      - name: "public"
+        security_model: "v2c"
+        user_group: "public_group"
+        state: "present"
+    
+    # Set to true to apply changes
+    apply_changes: false
+
+    # Login credentials
+    username: test
+    password: admin123456
+
+  tasks:
+    - name: Validate SNMP user parameters
+      assert:
+        that:
+          - item.name | length > 0
+          - item.security_model in ['v1', 'v2c', 'v3']
+          - item.user_group | length > 0
+          - item.security_model != 'v3' or (item.auth_protocol | length > 0 and item.auth_key | length >= 8)
+          - item.security_model != 'v3' or not item.priv_protocol | length or (item.priv_protocol | length > 0 and item.priv_key | length >= 8)
+          - item.state in ['present', 'absent']
+        fail_msg: >
+          Invalid SNMP user parameters for {{ item.name }}. Check:
+          - name must not be empty
+          - security_model must be 'v1', 'v2c', or 'v3'
+          - user_group must not be empty
+          - v3 users require auth_protocol and auth_key (min 8 chars)
+          - v3 users with privacy require priv_protocol and priv_key (min 8 chars)
+          - state must be 'present' or 'absent'
+      loop: "{{ snmp_users }}"
+      run_once: true
+      tags: always
+
+    - name: Display SNMP user configuration plan
+      debug:
+        msg: |
+          SNMP User Configuration Plan:
+          - Device: {{ inventory_hostname }}
+          - Changes Allowed: {{ apply_changes | ternary('YES', 'NO (set apply_changes: true)') }}
+          - Users to configure:
+          {% for user in snmp_users %}
+          {% if user.state == 'present' %}
+            - {{ user.name }} ({{ user.security_model }}, Group: {{ user.user_group }}{% if user.security_model == 'v3' %}, Auth: {{ user.auth_protocol | default('none') }}{% if user.priv_protocol | length %}, Priv: {{ user.priv_protocol }}{% endif %}{% endif %})
+          {% else %}
+            - Remove user: {{ user.name }}
+          {% endif %}
+          {% endfor %}
+      changed_when: false
+      no_log: true
+      tags: always
+
+    - name: Configure SNMP users
+      when: apply_changes | bool
+      comware_snmp_user:
+        usm_user_name: "{{ item.name }}"
+        security_model: "{{ item.security_model }}"
+        user_group: "{{ item.user_group }}"
+        auth_protocol: "{{ item.auth_protocol | default(omit) }}"
+        auth_key: "{{ item.auth_key | default(omit) }}"
+        priv_protocol: "{{ item.priv_protocol | default(omit) }}"
+        priv_key: "{{ item.priv_key | default(omit) }}"
+        state: "{{ item.state }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      loop: "{{ snmp_users }}"
+      register: snmp_user_config
+      no_log: true
+      tags: config
+
+    - name: Display SNMP user configuration result
+      when: apply_changes | bool
+      debug:
+        msg: >
+          SNMP User Configuration Result:
+          - Changed: {{ snmp_user_config is changed | ternary('YES', 'NO') }}
+          - Users configured: {{ snmp_users | selectattr('state', 'equalto', 'present') | map(attribute='name') | list | join(', ') }}
+          - Users removed: {{ snmp_users | selectattr('state', 'equalto', 'absent') | map(attribute='name') | list | join(', ') }}
+      changed_when: snmp_user_config is changed
+      no_log: true
+      tags: always
+
+    - name: Verify SNMP user configuration (dry-run)
+      when: not apply_changes | bool
+      debug:
+        msg: >
+          This is a dry-run. No changes were made.
+          Set apply_changes: true to apply the SNMP user configuration.
+      changed_when: false
+      tags: always
+
+    - name: Validate invalid SNMP user configuration
+      when: not apply_changes | bool
+      block:
+        - name: Attempt invalid SNMPv3 user configuration (short auth key)
+          comware_snmp_user:
+            usm_user_name: "invalid_user"
+            security_model: "v3"
+            user_group: "test_group"
+            auth_protocol: "sha"
+            auth_key: "short"  # Too short
+            priv_protocol: "aes128"
+            priv_key: "tooshort"  # Too short
+            state: "present"
+            username: "{{ username }}"
+            password: "{{ password }}"
+            hostname: "{{ inventory_hostname }}"
+          register: invalid_config
+          ignore_errors: true
+          no_log: true
+          tags: test
+
+        - name: Verify invalid configuration was rejected
+          assert:
+            that:
+              - invalid_config.failed == true
+            success_msg: "Invalid SNMP user configuration was rejected (as expected)"
+            fail_msg: "Invalid SNMP user configuration was unexpectedly accepted"
+          tags: test

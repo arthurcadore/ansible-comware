@@ -1,0 +1,14 @@
+---
+
+- name: Comware Interface State Check
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Check interface status
+      comware_intfState:
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: interface_status

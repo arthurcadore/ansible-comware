@@ -1,0 +1,183 @@
+---
+- name: STP Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+  
+  # This playbook manages Spanning Tree Protocol (STP) configurations on Comware devices
+  # Supports multiple STP modes: STP, RSTP, MSTP, PVST
+
+  vars:
+    # STP global configuration
+    stp_config:
+      enabled: true  # Enable/disable STP globally
+      mode: "MSTP"   # STP mode: STP, RSTP, MSTP, PVST
+      bpdu_protection: true  # Enable BPDU protection
+      tc_protection: true    # Enable TC protection
+      
+      # MSTP specific settings (only applicable when mode is MSTP)
+      mstp:
+        region_name: "INTELBRAS"
+        revision: 1
+        instances:
+          - id: 0
+            vlan_list: "1-10"
+            priority: 32768
+          - id: 1
+            vlan_list: "11-20"
+            priority: 4096
+      
+      # Interface specific settings
+      interfaces:
+        - name: "FortyGigE1/0/1"
+          edge_port: true
+          bpdu_protection: true
+          cost: 2000
+          priority: 128
+        - name: "FortyGigE1/0/2"
+          edge_port: false
+          bpdu_protection: false
+          cost: 20000
+          priority: 64
+    
+    # Set to true to apply changes
+    apply_changes: false
+
+  tasks:
+    - name: Validate STP parameters
+      assert:
+        that:
+          - stp_config.mode in ['STP', 'RSTP', 'MSTP', 'PVST']
+          - not (stp_config.mode == 'MSTP' and (stp_config.mstp.region_name | length == 0))
+          - stp_config.enabled is boolean
+          - stp_config.bpdu_protection is boolean
+          - stp_config.tc_protection is boolean
+        fail_msg: >
+          Invalid STP parameters. Check:
+          - mode must be one of: STP, RSTP, MSTP, PVST
+          - MSTP mode requires region_name
+          - enabled, bpdu_protection, and tc_protection must be boolean
+      tags: always
+
+    - name: Display STP configuration plan
+      debug:
+        msg: |
+          STP Configuration Plan:
+          - Device: {{ inventory_hostname }}
+          - Changes Allowed: {{ apply_changes | ternary('YES', 'NO (set apply_changes: true)') }}
+          - STP Status: {{ stp_config.enabled | ternary('ENABLED', 'DISABLED') }}
+          - STP Mode: {{ stp_config.mode }}
+          - BPDU Protection: {{ stp_config.bpdu_protection | ternary('ENABLED', 'DISABLED') }}
+          - TC Protection: {{ stp_config.tc_protection | ternary('ENABLED', 'DISABLED') }}
+          
+          {% if stp_config.mode == 'MSTP' %}
+          MSTP Configuration:
+            - Region Name: {{ stp_config.mstp.region_name }}
+            - Revision: {{ stp_config.mstp.revision }}
+            - Instances:
+          {% for instance in stp_config.mstp.instances %}
+              - ID: {{ instance.id }}
+                VLANs: {{ instance.vlan_list }}
+                Priority: {{ instance.priority }}
+          {% endfor %}
+          {% endif %}
+          
+          Interfaces to Configure ({{ stp_config.interfaces | length }}):
+          {% for intf in stp_config.interfaces %}
+            - {{ intf.name }}:
+                Edge Port: {{ intf.edge_port | ternary('Yes', 'No') }}
+                BPDU Protection: {{ intf.bpdu_protection | ternary('Enabled', 'Disabled') }}
+                Cost: {{ intf.cost | default('auto') }}
+                Priority: {{ intf.priority | default(128) }}
+          {% endfor %}
+      changed_when: false
+      tags: always
+
+    - name: Configure global STP settings
+      when: apply_changes | bool
+      comware_stp:
+        enabled: "{{ stp_config.enabled }}"
+        mode: "{{ stp_config.mode }}"
+        bpdu: "{{ stp_config.bpdu_protection }}"
+        tc: "{{ stp_config.tc_protection }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: stp_global
+      no_log: true
+      tags: config
+
+    - name: Configure MSTP region (MSTP mode only)
+      when: 
+        - apply_changes | bool
+        - stp_config.mode == 'MSTP'
+      comware_stp:
+        mode: "MSTP"
+        region_name: "{{ stp_config.mstp.region_name }}"
+        revision: "{{ stp_config.mstp.revision | default(0) }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: mstp_region
+      no_log: true
+      tags: config
+
+    - name: Configure MSTP instances (MSTP mode only)
+      when: 
+        - apply_changes | bool
+        - stp_config.mode == 'MSTP'
+      comware_stp:
+        mode: "MSTP"
+        instance: "{{ item.id }}"
+        vlan_list: "{{ item.vlan_list }}"
+        priority: "{{ item.priority | default(32768) }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      loop: "{{ stp_config.mstp.instances }}"
+      register: mstp_instances
+      no_log: true
+      tags: config
+
+    - name: Configure interface STP settings
+      when: apply_changes | bool
+      comware_stp_interface:
+        name: "{{ item.name }}"
+        enabled: "{{ stp_config.enabled }}"
+        edge_port: "{{ item.edge_port | default(false) }}"
+        bpdu_protection: "{{ item.bpdu_protection | default(false) }}"
+        cost: "{{ item.cost | default(omit) }}"
+        priority: "{{ item.priority | default(omit) }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      loop: "{{ stp_config.interfaces }}"
+      register: stp_interfaces
+      no_log: true
+      tags: config
+
+    - name: Display STP configuration result
+      when: apply_changes | bool
+      debug:
+        msg: |
+          STP Configuration Result:
+          - Global STP: {{ stp_global is changed | ternary('CHANGED', 'OK') }}
+          {% if stp_config.mode == 'MSTP' %}
+          - MSTP Region: {{ mstp_region is changed | ternary('CHANGED', 'OK') }}
+          - MSTP Instances: {{ mstp_instances is changed | ternary('CHANGED', 'OK') }}
+          {% endif %}
+          - Interface Configurations: {{ stp_interfaces is changed | ternary('CHANGED', 'OK') }}
+      changed_when: 
+        - stp_global is changed or 
+          (stp_config.mode == 'MSTP' and (mstp_region is changed or mstp_instances is changed)) or
+          stp_interfaces is changed
+      tags: always
+
+    - name: Verify STP configuration (dry-run)
+      when: not apply_changes | bool
+      debug:
+        msg: >
+          This is a dry-run. No changes were made.
+          Set apply_changes: true to apply the STP configuration.
+      changed_when: false
+      tags: always

@@ -1,0 +1,16 @@
+---
+- name: Comware Facts testing
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Gather device facts
+      comware_facts:
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+
+    - name: Display operating system information
+      debug:
+        var: os

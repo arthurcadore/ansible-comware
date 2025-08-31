@@ -1,0 +1,56 @@
+---
+- name: Comware Log Source Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  vars:
+    log_sources:
+      - id: 1
+        name: ARP
+        level: critical
+      - id: 2
+        name: ARP
+        level: critical
+      - id: 3
+        name: ARP
+        level: critical
+      - id: 4
+        name: ARP
+        level: critical
+
+  tasks:
+    - name: Configure log sources
+      comware_log_source:
+        channelID: "{{ item.id }}"
+        channelName: "{{ item.name }}"
+        level: "{{ item.level }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: log_source_config
+      loop: "{{ log_sources }}"
+      loop_control:
+        label: "Configuring log source {{ item.id }}"
+
+    - name: Verify log source configuration
+      debug:
+        var: log_source_config
+
+    - name: Remove log sources
+      comware_log_source:
+        channelID: "{{ item.id }}"
+        channelName: "{{ item.name }}"
+        level: "{{ item.level }}"
+        state: absent
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: log_source_removal
+      loop: "{{ log_sources }}"
+      loop_control:
+        label: "Removing log source {{ item.id }}"
+
+    - name: Verify log source removal
+      debug:
+        var: log_source_removal

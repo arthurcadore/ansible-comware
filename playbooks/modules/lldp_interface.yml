@@ -1,0 +1,32 @@
+---
+- name: Comware LLDP Interface Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Enable LLDP on interface
+      comware_lldp_interface:
+        name: GigabitEthernet1/0/12
+        interface_enable: enabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: enable_lldp_interface
+
+    - name: Verify LLDP interface enable
+      debug:
+        var: enable_lldp_interface
+
+    - name: Disable LLDP on interface
+      comware_lldp_interface:
+        name: GigabitEthernet1/0/12
+        interface_enable: disabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: disable_lldp_interface
+
+    - name: Verify LLDP interface disable
+      debug:
+        var: disable_lldp_interface

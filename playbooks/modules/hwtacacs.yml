@@ -1,0 +1,17 @@
+---
+
+- name: Comware HWTACACS Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Configure HWTACACS scheme
+      comware_hwtacacs:
+        hwtacacs_scheme_name: test
+        priority: primary
+        auth_host_ip: 192.168.1.186
+        auth_host_port: 48
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"

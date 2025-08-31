@@ -1,0 +1,156 @@
+---
+- name: SNMP Target Host Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+  
+  # This playbook manages SNMP target host configurations on Comware devices
+  # Supports both SNMPv2c and SNMPv3 target hosts with trap and inform message types
+
+  vars:
+    # SNMP target host configurations
+    snmp_targets:
+      # SNMPv3 trap target example
+      - name: "v3_trap_target"
+        server_address: "10.1.1.1"
+        target_type: "trap"
+        usm_user_name: "admin_v3"
+        security_model: "v3"
+        security_level: "authentication"  # noAuthNoPriv, authentication, privacy
+        vpn_instance: "mgmt_vpn"
+        port: 162  # Default SNMP trap port
+        state: "present"
+      
+      # SNMPv2c trap target example
+      - name: "v2c_trap_target"
+        server_address: "10.2.2.2"
+        target_type: "trap"
+        usm_user_name: "public"
+        security_model: "v2c"
+        vpn_instance: ""  # Empty for global VRF
+        port: 162
+        state: "present"
+      
+      # SNMPv2c inform target example
+      - name: "v2c_inform_target"
+        server_address: "10.3.3.3"
+        target_type: "inform"
+        usm_user_name: "public"
+        security_model: "v2c"
+        vpn_instance: ""
+        port: 162
+        state: "present"
+    
+    # Set to true to apply changes
+    apply_changes: false
+
+    # Login credentials
+    username: test
+    password: admin123456
+
+  tasks:
+    - name: Validate SNMP target host parameters
+      assert:
+        that:
+          - item.server_address | ipaddr
+          - item.target_type in ['trap', 'inform']
+          - item.usm_user_name | length > 0
+          - item.security_model in ['v1', 'v2c', 'v3']
+          - item.security_model != 'v3' or item.security_level in ['noAuthNoPriv', 'authentication', 'privacy']
+          - item.port | int >= 1 and item.port | int <= 65535
+          - item.state in ['present', 'absent']
+        fail_msg: >
+          Invalid SNMP target host parameters for {{ item.name }}. Check:
+          - server_address must be a valid IP address
+          - target_type must be 'trap' or 'inform'
+          - usm_user_name must not be empty
+          - security_model must be 'v1', 'v2c', or 'v3'
+          - security_level is required for v3 and must be one of: noAuthNoPriv, authentication, privacy
+          - port must be between 1 and 65535
+          - state must be 'present' or 'absent'
+      loop: "{{ snmp_targets }}"
+      run_once: true
+      tags: always
+
+    - name: Display SNMP target host configuration plan
+      debug:
+        msg: |
+          SNMP Target Host Configuration Plan:
+          - Device: {{ inventory_hostname }}
+          - Changes Allowed: {{ apply_changes | ternary('YES', 'NO (set apply_changes: true)') }}
+          - Targets to configure:
+          {% for target in snmp_targets %}
+          {% if target.state == 'present' %}
+            - {{ target.name }}: {{ target.server_address }}:{{ target.port }} ({{ target.security_model }}, {{ target.target_type }}{% if target.vpn_instance %}, VPN: {{ target.vpn_instance }}{% endif %})
+          {% else %}
+            - Remove target: {{ target.name }} ({{ target.server_address }}:{{ target.port }})
+          {% endif %}
+          {% endfor %}
+      changed_when: false
+      tags: always
+
+    - name: Configure SNMP target hosts
+      when: apply_changes | bool
+      comware_snmp_target_host:
+        server_address: "{{ item.server_address }}"
+        target_type: "{{ item.target_type }}"
+        usm_user_name: "{{ item.usm_user_name }}"
+        security_model: "{{ item.security_model }}"
+        security_level: "{{ item.security_level | default(omit) }}"
+        vpnname: "{{ item.vpn_instance | default(omit) }}"
+        port: "{{ item.port | default(162) }}"
+        state: "{{ item.state }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      loop: "{{ snmp_targets }}"
+      register: snmp_target_config
+      no_log: true
+      tags: config
+
+    - name: Display SNMP target host configuration result
+      when: apply_changes | bool
+      debug:
+        msg: >
+          SNMP Target Host Configuration Result:
+          - Changed: {{ snmp_target_config is changed | ternary('YES', 'NO') }}
+          - Targets configured: {{ snmp_targets | selectattr('state', 'equalto', 'present') | map(attribute='name') | list | join(', ') }}
+          - Targets removed: {{ snmp_targets | selectattr('state', 'equalto', 'absent') | map(attribute='name') | list | join(', ') }}
+      changed_when: snmp_target_config is changed
+      tags: always
+
+    - name: Verify SNMP target host configuration (dry-run)
+      when: not apply_changes | bool
+      debug:
+        msg: >
+          This is a dry-run. No changes were made.
+          Set apply_changes: true to apply the SNMP target host configuration.
+      changed_when: false
+      tags: always
+
+    - name: Validate invalid SNMP target host configuration
+      when: not apply_changes | bool
+      block:
+        - name: Attempt invalid SNMP target host configuration
+          comware_snmp_target_host:
+            server_address: "invalid_ip"
+            target_type: "invalid_type"
+            usm_user_name: ""
+            security_model: "v4"
+            port: 99999
+            state: "present"
+            username: "{{ username }}"
+            password: "{{ password }}"
+            hostname: "{{ inventory_hostname }}"
+          register: invalid_config
+          ignore_errors: true
+          no_log: true
+          tags: test
+
+        - name: Verify invalid configuration was rejected
+          assert:
+            that:
+              - invalid_config.failed == true
+            success_msg: "Invalid SNMP target host configuration was rejected (as expected)"
+            fail_msg: "Invalid SNMP target host configuration was unexpectedly accepted"
+          tags: test

@@ -1,0 +1,40 @@
+---
+- name: Comware Interface MTU Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  vars:
+    interface: "Ten-GigabitEthernet2/0/7"
+    mtu_size: 1600
+    jumbo_frame: 1537
+
+  tasks:
+    - name: Configure interface MTU and jumbo frame settings
+      comware_mtu:
+        name: "{{ interface }}"
+        jumboframe: "{{ jumbo_frame }}"
+        mtu: "{{ mtu_size }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: mtu_config
+
+    - name: Verify MTU configuration
+      debug:
+        var: mtu_config
+
+    - name: Reset MTU to default (example)
+      comware_mtu:
+        name: "{{ interface }}"
+        state: default
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: mtu_reset
+      when: false  # Disabled by default, set to true to enable reset
+
+    - name: Verify MTU reset
+      debug:
+        var: mtu_reset
+      when: mtu_reset is defined

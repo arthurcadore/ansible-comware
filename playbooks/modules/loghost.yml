@@ -1,0 +1,46 @@
+---
+- name: Comware Loghost Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  vars:
+    loghost: "3.3.3.7"
+    vrf: "vpn2"
+    port: 512
+    facility: 128
+    source_interface: "LoopBack0"
+
+  tasks:
+    - name: Configure loghost with VRF and source interface
+      comware_loghost:
+        loghost: "{{ loghost }}"
+        VRF: "{{ vrf }}"
+        hostport: "{{ port }}"
+        facility: "{{ facility }}"
+        sourceID: "{{ source_interface }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: loghost_config
+
+    - name: Verify loghost configuration
+      debug:
+        var: loghost_config
+
+    - name: Remove loghost configuration
+      comware_loghost:
+        loghost: "{{ loghost }}"
+        VRF: "{{ vrf }}"
+        hostport: "{{ port }}"
+        facility: "{{ facility }}"
+        sourceID: "{{ source_interface }}"
+        state: absent
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: loghost_removal
+
+    - name: Verify loghost removal
+      debug:
+        var: loghost_removal

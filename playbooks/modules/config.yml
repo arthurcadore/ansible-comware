@@ -1,0 +1,43 @@
+---
+- name: Comware Config testing
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Install configuration file as new running config with diff
+      comware_install_config:
+        config_file: '/home/ansible/pycw7-ansible/diffcheck.cfg'
+        diff_file: '/home/ansible/pycw7-ansible/diff1.diff'
+        commit_changes: true
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: data
+
+    - name: Verify configuration installation with diff
+      assert:
+        that:
+          - data.config_file == '/home/ansible/pycw7-ansible/diffcheck.cfg'
+          - data.diff_file == '/home/ansible/pycw7-ansible/diff1.diff'
+          - data.commit_changes == true
+          - data.changed == true
+          - data.active_files.config_applied == 'flash:/diffcheck.cfg'
+
+    - name: Install configuration file without committing
+      comware_install_config:
+        config_file: '/home/ansible/pycw7-ansible/diffcheck.cfg'
+        commit_changes: false
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: data
+
+    - name: Verify configuration installation without commit
+      assert:
+        that:
+          - data.config_file == '/home/ansible/pycw7-ansible/diffcheck.cfg'
+          - data.diff_file == none
+          - data.commit_changes == false
+          - data.changed == false
+          - data.active_files.config_applied == 'flash:/diffcheck.cfg'

@@ -1,0 +1,34 @@
+---
+- name: Comware Command testing
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Display VLAN 1 using a string command
+      comware_command:
+        command: 'display vlan 1'
+        type: display
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+
+    - name: Display multiple VLANs using a list of commands
+      comware_command:
+        command:
+          - 'display vlan 1173'
+          - 'display vlan 1'
+        type: display
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+
+    - name: Configure VLAN using a list of configuration commands
+      comware_command:
+        command:
+          - 'vlan 5'
+          - 'name web_vlan'
+        type: config
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"

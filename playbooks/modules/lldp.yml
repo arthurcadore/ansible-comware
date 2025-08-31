@@ -1,0 +1,35 @@
+---
+- name: Comware LLDP Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Configure LLDP parameters
+      comware_lldp:
+        fast_intervalId: 8
+        tx_intervalId: 4
+        multiplierId: 8
+        state: present
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: lldp_config
+
+    - name: Verify LLDP configuration
+      debug:
+        var: lldp_config
+
+    - name: Reset LLDP intervals to default
+      comware_lldp:
+        fast_intervalId: 5
+        tx_intervalId: 4
+        state: default
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: lldp_reset
+
+    - name: Verify LLDP reset
+      debug:
+        var: lldp_reset

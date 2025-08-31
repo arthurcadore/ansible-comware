@@ -1,0 +1,53 @@
+---
+- name: Comware IRF Ports Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Configure IRF ports with basic settings
+      comware_irf_ports:
+        member_id: 1
+        irf_p1: FortyGigE1/0/1
+        irf_p2: FortyGigE1/0/2
+        removal_override: yes
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: irf_ports_result
+
+    - name: Verify IRF ports configuration
+      debug:
+        var: irf_ports_result
+
+    - name: Configure IRF ports with interface list
+      comware_irf_ports:
+        member_id: 1
+        irf_p1: 
+          - FortyGigE1/0/1
+          - FortyGigE1/0/4
+        irf_p2: FortyGigE1/0/2
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+        removal_override: yes
+        activate: false
+      register: irf_ports_list
+      tags: 
+        - member1
+
+    - name: Configure IRF ports for member 2
+      comware_irf_ports:
+        member_id: 2
+        irf_p1: FortyGigE2/0/2
+        irf_p2: 
+          - FortyGigE2/0/1
+          - Fo2/0/7
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+        removal_override: yes
+        activate: false
+      register: irf_ports_member2
+      tags: 
+        - member2

@@ -1,0 +1,201 @@
+---
+- name: Comware IP Interface Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+
+  tasks:
+    - name: Ensure interface is in layer 3 mode
+      comware_interface:
+        name: FortyGigE1/0/3
+        type: routed
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: interface_result
+
+    - name: Verify interface is in routed mode
+      assert:
+        that:
+          - "interface_result.end_state.type == 'routed'"
+
+    - name: Configure basic IPv4 address
+      comware_ipinterface:
+        name: FortyGigE1/0/3
+        addr: 192.168.3.5
+        mask: 255.255.255.0
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: ip_result
+
+    - name: Verify IPv4 configuration
+      assert:
+        that:
+          - "ip_result.end_state.addr == '192.168.3.5'"
+          - "ip_result.end_state.mask == '255.255.255.0'"
+
+    - name: Verify IPv4 configuration idempotency
+      comware_ipinterface:
+        name: FortyGigE1/0/3
+        addr: 192.168.3.5
+        mask: 255.255.255.0
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: ip_idempotent
+
+    - name: Verify IPv4 idempotency results
+      assert:
+        that:
+          - "ip_idempotent.end_state.addr == '192.168.3.5'"
+          - "ip_idempotent.end_state.mask == '255.255.255.0'"
+          - "ip_idempotent.changed == false"
+
+    - name: Verify IPv4 configuration with prefix notation
+      comware_ipinterface:
+        name: FortyGigE1/0/3
+        addr: 192.168.3.5
+        mask: 24
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: ip_prefix
+
+    - name: Verify IPv4 prefix notation results
+      assert:
+        that:
+          - "ip_prefix.end_state.addr == '192.168.3.5'"
+          - "ip_prefix.end_state.mask == '255.255.255.0'"
+          - "ip_prefix.changed == false"
+
+    - name: Update IPv4 subnet mask
+      comware_ipinterface:
+        name: FortyGigE1/0/3
+        addr: 192.168.3.5
+        mask: 28
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: ip_update
+
+    - assert:
+          that:
+          - "ip_update.end_state.addr == '192.168.3.5'"
+          - "ip_update.end_state.mask == '255.255.255.240'"
+          - "ip_update.changed == true"
+
+    - name: Basic IPv6 config
+      comware_ipinterface: version=v6 name=FortyGigE1/0/3 addr=2001:DB8::1 mask=10 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+
+    - assert:
+          that:
+          - "results.end_state.addr == '2001:DB8::1'"
+          - "results.end_state.mask == '10'"
+
+    - name: IPv6 idempotency
+      comware_ipinterface: version=v6 name=FortyGigE1/0/3 addr=2001:DB8::1 mask=10 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+
+    - assert:
+          that:
+          - "results.end_state.addr == '2001:DB8::1'"
+          - "results.end_state.mask == '10'"
+          - "results.changed == false"
+
+    - name: IPv6 add another
+      comware_ipinterface: version=v6 name=FortyGigE1/0/3 addr=2001:DB8::2 mask=10 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+
+    - assert:
+          that:
+          - "results.end_state.addr == '2001:DB8::2'"
+          - "results.end_state.mask == '10'"
+
+    # state = absent
+    - name: IPv6 remove the first one
+      comware_ipinterface: state=absent version=v6 name=FortyGigE1/0/3 addr=2001:DB8::1 mask=10 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+
+    - assert:
+          that:
+          - "{} == {{ results.end_state }}"
+          - "results.changed == true"
+
+    - name: IPv6 remove the second one
+      comware_ipinterface: state=absent version=v6 name=FortyGigE1/0/3 addr=2001:DB8::2 mask=10 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+
+    - assert:
+          that:
+          - "{} == {{ results.end_state }}"
+          - "results.changed == true"
+
+    - name: IPv4 removal
+      comware_ipinterface: state=absent version=v4 name=FortyGigE1/0/3 addr=192.168.3.5 mask=28 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+
+    - assert:
+          that:
+          - "{} == {{ results.end_state }}"
+          - "results.changed == true"
+
+    #failures
+    - name: Invalid IPv4 Address
+      comware_ipinterface: version=v4 name=FortyGigE1/0/3 addr=192.168.256.5 mask=28 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+      ignore_errors: true
+      tags: fails
+
+    - assert:
+          that:
+          - "results.failed == true"
+      tags: fails
+
+    - name: Invalid IPv4 Mask
+      comware_ipinterface: version=v4 name=FortyGigE1/0/3 addr=192.168.3.5 mask=33 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+      ignore_errors: true
+      tags: fails
+
+    - assert:
+          that:
+          - "results.failed == true"
+      tags: fails
+
+    - name: Invalid IPv6 Address
+      comware_ipinterface: version=v6 name=FortyGigE1/0/3 addr=g::1 mask=28 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+      ignore_errors: true
+      tags: fails
+
+    - assert:
+          that:
+          - "results.failed == true"
+      tags: fails
+
+    - name: Invalid IPv6 Mask
+      comware_ipinterface: version=v6 name=FortyGigE1/0/3 addr=fe::03 mask=129 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+      ignore_errors: true
+      tags: fails
+
+    - assert:
+          that:
+          - "results.failed == true"
+      tags: fails
+
+    - name: Setup for bridged test
+      comware_interface: name=FortyGigE1/0/5 type=bridged username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+
+    - name: Interface not in routed mode
+      comware_ipinterface: name=FortyGigE1/0/5 addr=192.168.3.5 mask=28 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+      ignore_errors: true
+      tags: fails
+
+    - assert:
+          that:
+          - "results.failed == true"
+      tags: fails
