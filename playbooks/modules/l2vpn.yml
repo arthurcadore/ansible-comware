@@ -1,45 +1,58 @@
 ---
+- name: Comware L2VPN Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware vxlan automation testing
-    hosts: test1
-    gather_facts: no
-    connection: local
+  tasks:
+    - name: Enable L2VPN globally
+      comware_l2vpn_global:
+        state: enabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: enable_l2vpn
 
-    vars:
-      username: test
-      password: test123
+    - name: Verify L2VPN is enabled
+      assert:
+        that:
+          - "enable_l2vpn.end_state == 'enabled'"
 
-    tasks:
+    - name: Verify L2VPN idempotency (enabled)
+      comware_l2vpn_global:
+        state: enabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: l2vpn_idempotent
 
-      - name: ensure L2VPN is enabled
-        comware_l2vpn_global: state=enabled username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: data
+    - name: Verify idempotency results
+      assert:
+        that:
+          - "l2vpn_idempotent.changed == false"
 
-      - assert:
-          that:
-            - data.end_state == 'enabled'
+    - name: Disable L2VPN globally
+      comware_l2vpn_global:
+        state: disabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: disable_l2vpn
 
+    - name: Verify L2VPN is disabled
+      assert:
+        that:
+          - "disable_l2vpn.end_state == 'disabled'"
 
-      - name: ensure L2VPN is enabled
-        comware_l2vpn_global: state=enabled username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: data
+    - name: Re-enable L2VPN globally
+      comware_l2vpn_global:
+        state: enabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: reenable_l2vpn
 
-      - assert:
-          that:
-            - data.changed == false
-
-      - name: ensure L2VPN is disabled
-        comware_l2vpn_global: state=disabled username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: data
-
-      - assert:
-          that:
-            - data.end_state == 'disabled'
-
-      - name: ensure L2VPN is enabled
-        comware_l2vpn_global: state=enabled username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: data
-
-      - assert:
-          that:
-            - data.end_state == 'enabled'
+    - name: Verify L2VPN is re-enabled
+      assert:
+        that:
+          - "reenable_l2vpn.end_state == 'enabled'"

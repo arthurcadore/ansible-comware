@@ -1,74 +1,111 @@
 ---
+- name: Comware OS Installation Automation
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware OS Installation automation
-    hosts: test2
-    gather_facts: no
-    connection: local
+  tasks:
+    - name: Install OS using IPE package
+      comware_install_os:
+        ipe_package: '../5900_5920_5930-CMW710-E2415.ipe'
+        reboot: false
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: results
 
-    tasks:
-      - name: Basic Install OS IPE
-        comware_install_os: ipe_package=../5900_5920_5930-CMW710-E2415.ipe reboot=false username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: results
+    - name: Verify IPE installation idempotency
+      comware_install_os:
+        ipe_package: '../5900_5920_5930-CMW710-E2415.ipe'
+        reboot: false
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: results
 
-      - name: Basic Install OS IPE idempotency
-        comware_install_os: ipe_package=../5900_5920_5930-CMW710-E2415.ipe reboot=false username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: results
+    - name: Verify IPE installation results
+      assert:
+        that:
+          - "results.transfered == false"
 
-      - assert:
-          that:
-            - "results.transfered == false"
+    - name: Install OS using Boot and System files
+      comware_install_os:
+        reboot: false
+        boot: '../5930-cmw710-boot-e2415.bin'
+        system: '../5930-cmw710-system-e2415.bin'
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
 
-      - name: Basic Install OS Boot/Sys
-        comware_install_os: reboot=false boot=../5930-cmw710-boot-e2415.bin system=../5930-cmw710-system-e2415.bin username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Verify Boot/System installation idempotency
+      comware_install_os:
+        reboot: false
+        boot: '../5930-cmw710-boot-e2415.bin'
+        system: '../5930-cmw710-system-e2415.bin'
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: results
 
-      - name: Basic Install OS Boot/Sys idempotency
-        comware_install_os: reboot=false boot=../5930-cmw710-boot-e2415.bin system=../5930-cmw710-system-e2415.bin username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Verify Boot/System installation results
+      assert:
+        that:
+          - "results.transfered == false"
 
-      - assert:
-          that:
-            - "results.transfered == false"
+    # Failure test cases
+    - name: Test invalid combination of boot/sys and ipe
+      comware_install_os:
+        reboot: false
+        ipe_package: '../5900_5920_5930-CMW710-E2415.ipe'
+        system: '../5930-cmw710-system-e2415.bin'
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: results
+      ignore_errors: true
+      tags: fail
 
-      # failures
-      - name: boot/sys and ipe used together
-        comware_install_os: reboot=no ipe_package=../5900_5920_5930-CMW710-E2415.ipe system=../5930-cmw710-system-e2415.bin username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: results
-        ignore_errors: true
-        tags: fail
+    - name: Verify invalid combination fails as expected
+      assert:
+        that:
+          - "results.failed == true"
+      tags: fail
 
-      - assert:
-          that:
+    - name: Test invalid configuration (system without boot)
+      comware_install_os:
+        reboot: false
+        system: '../5930-cmw710-system-e2415.bin'
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: results
+      ignore_errors: true
+      tags: fail
+
+    - name: Verify invalid configuration fails as expected
+      assert:
+        that:
           - "results.failed == true"
         tags: fail
 
-      - name: just system without boot
-        comware_install_os: reboot=no system=../5930-cmw710-system-e2415.bin username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: results
-        ignore_errors: true
-        tags: fail
+    - name: file doesn't exist locally
+      comware_install_os: reboot=no ipe_package=../notfile username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+      ignore_errors: true
+      tags: fail
 
-      - assert:
-          that:
+    - assert:
+        that:
           - "results.failed == true"
-        tags: fail
+      tags: fail
 
-      - name: file doesn't exist locally
-        comware_install_os: reboot=no ipe_package=../notfile username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: results
-        ignore_errors: true
-        tags: fail
+    # reboot attempt
+    - name: Reboot attempt
+      comware_install_os: reboot=yes boot=../5930-cmw710-boot-e2415.bin system=../5930-cmw710-system-e2415.bin username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      register: results
+      tags: reboot
 
-      - assert:
-          that:
-          - "results.failed == true"
-        tags: fail
-
-      # reboot attempt
-      - name: Reboot attempt
-        comware_install_os: reboot=yes boot=../5930-cmw710-boot-e2415.bin system=../5930-cmw710-system-e2415.bin username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: results
-        tags: reboot
-
-      - assert:
-          that:
-            - "results.reboot_attempt == 'yes'"
-        tags: reboot
+    - assert:
+        that:
+          - "results.reboot_attempt == 'yes'"
+      tags: reboot

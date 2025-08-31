@@ -1,30 +1,56 @@
 ---
+- name: Comware Log Source Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware log_source
-    hosts: test1 test2
-    gather_facts: no
-    connection: local
+  vars:
+    log_sources:
+      - id: 1
+        name: ARP
+        level: critical
+      - id: 2
+        name: ARP
+        level: critical
+      - id: 3
+        name: ARP
+        level: critical
+      - id: 4
+        name: ARP
+        level: critical
 
-    vars:
-      username: test
-      password: admin123456
+  tasks:
+    - name: Configure log sources
+      comware_log_source:
+        channelID: "{{ item.id }}"
+        channelName: "{{ item.name }}"
+        level: "{{ item.level }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: log_source_config
+      loop: "{{ log_sources }}"
+      loop_control:
+        label: "Configuring log source {{ item.id }}"
 
-    tasks:
-      # basic config
-      - comware_log_source: channelID=1 channelName=ARP level=critical username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      
-      # delete config
-      - comware_log_source: channelID=1 channelName=ARP level=critical state=absent username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      # basic config
-      - comware_log_source: channelID=2 channelName=ARP level=critical username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      
-      # delete config
-      - comware_log_source: channelID=2 channelName=ARP level=critical state=absent username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      - comware_log_source: channelID=3 channelName=ARP level=critical username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      
-      # delete config
-      - comware_log_source: channelID=3 channelName=ARP level=critical state=absent username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      - comware_log_source: channelID=4 channelName=ARP level=critical username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      
-      # delete config
-      - comware_log_source: channelID=4 channelName=ARP level=critical state=absent username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Verify log source configuration
+      debug:
+        var: log_source_config
+
+    - name: Remove log sources
+      comware_log_source:
+        channelID: "{{ item.id }}"
+        channelName: "{{ item.name }}"
+        level: "{{ item.level }}"
+        state: absent
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: log_source_removal
+      loop: "{{ log_sources }}"
+      loop_control:
+        label: "Removing log source {{ item.id }}"
+
+    - name: Verify log source removal
+      debug:
+        var: log_source_removal

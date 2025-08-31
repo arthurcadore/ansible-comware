@@ -1,22 +1,53 @@
 ---
+- name: Comware Patch Management
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware patch
-    hosts: test2
-    gather_facts: no
-    connection: local
+  vars:
+    patch_file: "/root/pycw7-ansible-master/gqy/s6820-cmw710-system-weak-patch-f6205p05h16.bin"
+    remote_patch: "flash:/s6820-cmw710-system-weak-patch-f6205p05h16.bin"
+    patch_name: "patch.bin"
+    check_patch: "s6805-cmw710-boot-r6607.bin"
 
-    vars:
-      username: test
-      password: admin123456
+  tasks:
+    - name: Copy patch file to switch
+      comware_file_copy:
+        file: "{{ patch_file }}"
+        remote_path: "{{ remote_patch }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: file_copy_result
 
-    tasks:
-       - name: copy version from ansible server into switch.
-         comware_file_copy: file=/root/pycw7-ansible-master/gqy/s6820-cmw710-system-weak-patch-f6205p05h16.bin remote_path=flash:/s6820-cmw710-system-weak-patch-f6205p05h16.bin username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-  
-       - name: check bin is exit or not and active it.
-          comware_patch: patchname=patch.bin activate=true username={{ username }} password={{ password }} hostname={{ inventory_hostname }} 
-         async: 60
-         poll: 0
-  
-       - name: check patch is active or not 
-          comware_patch: patchname=s6805-cmw710-boot-r6607.bin check_result=true username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Verify file copy
+      debug:
+        var: file_copy_result
+
+    - name: Activate patch
+      comware_patch:
+        patchname: "{{ patch_name }}"
+        activate: true
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      async: 60
+      poll: 0
+      register: patch_activation
+
+    - name: Check patch activation status
+      debug:
+        var: patch_activation
+
+    - name: Verify patch status
+      comware_patch:
+        patchname: "{{ check_patch }}"
+        check_result: true
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: patch_status
+
+    - name: Display patch verification results
+      debug:
+        var: patch_status

@@ -1,32 +1,50 @@
 ---
+- name: Network Reachability Tests
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware facts
-    hosts: test1
-    gather_facts: no
-    connection: local
+  vars:
+    test_hosts:
+      - host: 8.8.8.8
+        description: "Google DNS"
+      - host: 300.8.8.8
+        description: "Invalid IP (for failure testing)"
 
-    tasks:
+  tasks:
+    - name: Test network reachability
+      comware_ping:
+        host: "{{ item.host }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: ping_results
+      ignore_errors: "{{ item.host == '300.8.8.8' }}"
+      loop: "{{ test_hosts }}"
+      loop_control:
+        label: "Testing reachability to {{ item.host }} ({{ item.description }})"
 
-      - name: test reachability to 8.8.8.8
-        comware_ping: host=8.8.8.8 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: results
+    - name: Display ping results
+      debug:
+        msg: |
+          Host: {{ item.item.host }}
+          Status: {% if item.failed %}Failed{% else %}Success{% endif %}
+          Loss Rate: {{ item.response.loss_rate }}
+          Avg Response: {{ item.response.avg }}ms
+          Packets Sent: {{ item.response.packets_tx }}
+          Packets Received: {{ item.response.packets_rx }}
+      when: item.item.host != '300.8.8.8'
+      loop: "{{ ping_results.results | default([ping_results]) }}"
+      loop_control:
+        label: "{{ item.item.host }}"
 
-      - name: dump all of results
-        debug: var=results
-
-      - name: print to terminal some of the return data individually
-        debug: msg="loss rate         --> {{ results.response.loss_rate }}"
-      - debug: msg="avg response time --> {{ results.response.avg }}ms"
-      - debug: msg="packets sent      --> {{ results.response.packets_rx }}"
-      - debug: msg="packets received  --> {{ results.response.packets_tx }}"
-
-      # FAIL TEST
-      - name: test reachability t
-        comware_ping: host=300.8.8.8 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        ignore_errors: true
-        register: data
-        tags: f1
-
-      - assert:
-          that:
-            - data.failed == true
+    - name: Verify failure for invalid IP
+      assert:
+        that:
+          - item.failed == true
+        fail_msg: "Expected ping to {{ item.item.host }} to fail but it succeeded"
+        success_msg: "Ping to {{ item.item.host }} failed as expected"
+      when: item.item.host == '300.8.8.8'
+      loop: "{{ ping_results.results | default([ping_results]) }}"
+      loop_control:
+        label: "{{ item.item.host }}"

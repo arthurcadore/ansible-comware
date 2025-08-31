@@ -1,15 +1,48 @@
 ---
+- name: Comware OSPF Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware ospf
-    hosts: test1
-    gather_facts: no
-    connection: local
+  vars:
+    ospf_processes:
+      - name: 4
+        area: 2.2.2.2
+        areatype: NSSA
+      - name: 5
+        area: 2.2.2.2
+        areatype: Stub
+    lsa_timers:
+      max: 20
+      min: 20
+      inc: 20
 
-    vars:
-      username: test
-      password: admin123456
+  tasks:
+    - name: Configure OSPF processes
+      comware_ospf:
+        ospfname: "{{ item.name }}"
+        area: "{{ item.area }}"
+        areatype: "{{ item.areatype }}"
+        lsa_generation_max: "{{ lsa_timers.max }}"
+        lsa_generation_min: "{{ lsa_timers.min }}"
+        lsa_generation_inc: "{{ lsa_timers.inc }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: ospf_config
+      loop: "{{ ospf_processes }}"
+      loop_control:
+        label: "Configuring OSPF {{ item.name }} ({{ item.areatype }} area)"
 
-    tasks:
-      # Basic Ethernet config
-      - comware_ospf: ospfname=4 area=2.2.2.2 areatype=NSSA lsa_generation_max=20 lsa_generation_min=20 lsa_generation_inc=20 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      - comware_ospf: ospfname=5 area=2.2.2.2 areatype=Stub lsa_generation_max=20 lsa_generation_min=20 lsa_generation_inc=20 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Verify OSPF configuration
+      debug:
+        var: ospf_config
+
+    - name: Display OSPF configuration summary
+      debug:
+        msg: |
+          OSPF Processes Configured:
+          {% for proc in ospf_processes %}
+          - Process ID: {{ proc.name }}, Area: {{ proc.area }}, Type: {{ proc.areatype }}
+          {% endfor %}
+          LSA Timers - Max: {{ lsa_timers.max }}s, Min: {{ lsa_timers.min }}s, Inc: {{ lsa_timers.inc }}s

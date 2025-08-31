@@ -1,15 +1,33 @@
 ---
+- name: Comware Local User Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware local_user
-    hosts: test1 test2
-    gather_facts: no
-    connection: local
+  tasks:
+    - name: Configure local user with FTP access
+      comware_local_user:
+        localusername: test
+        server_ftp: true
+        local_user_level: 15
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: local_user_config
 
-    vars:
-      username: test
-      password: admin123456
+    - name: Verify local user configuration
+      debug:
+        var: local_user_config
 
-    tasks:
-      # Basic Ethernet config
-      #- Before using ftp_dir , ensure it already exist in the device.   e.g. flash:/
-      - comware_local_user: localusername=test server_ftp=True local_user_level=15 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    # Note: Before using ftp_dir, ensure the directory exists on the device (e.g., flash:/)
+    # Example with ftp_dir (uncomment and modify as needed):
+    # - name: Configure local user with specific FTP directory
+    #   comware_local_user:
+    #     localusername: test_ftp
+    #     server_ftp: true
+    #     ftp_dir: flash:/ftp_dir
+    #     local_user_level: 15
+    #     username: "{{ username }}"
+    #     password: "{{ password }}"
+    #     hostname: "{{ inventory_hostname }}"
+    #   register: ftp_user_config

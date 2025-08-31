@@ -1,16 +1,54 @@
 ---
+- name: Comware OSPF Interface Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware ospf_intf
-    hosts: test1
-    gather_facts: no
-    connection: local
+  vars:
+    interface: "GigabitEthernet1/0/7"
+    ospf_params:
+      ospfname: 1
+      area: 0
+      ospfcost: 10
+      network_type: p2p
+      auth:
+        keyid: 11
+        md5type: md5
+        md5pwdtype: plain
+        md5pwd: 1
+    username: test
+    password: admin123456
 
-    vars:
-      username: test
-      password: admin123456
+  tasks:
+    - name: Configure OSPF on interface
+      comware_ospf_intf:
+        name: "{{ interface }}"
+        ospfname: "{{ ospf_params.ospfname }}"
+        area: "{{ ospf_params.area }}"
+        ospfcost: "{{ ospf_params.ospfcost }}"
+        network_type: "{{ ospf_params.network_type }}"
+        keyid: "{{ ospf_params.auth.keyid }}"
+        md5type: "{{ ospf_params.auth.md5type }}"
+        md5pwdtype: "{{ ospf_params.auth.md5pwdtype }}"
+        md5pwd: "{{ ospf_params.auth.md5pwd }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: ospf_intf_config
 
-    tasks:
-      # Basic Ethernet config ensure name (interface name) exists in device and the interface support ospf setting.
-      - comware_ospf_intf: name=GigabitEthernet1/0/7 ospfname=1 area=0 ospfcost=10 network_type=p2p keyid=11 md5type=md5 md5pwdtype=plain md5pwd=1 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        
-      - comware_ospf_intf: name=GigabitEthernet1/0/7 state=default username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Verify OSPF interface configuration
+      debug:
+        var: ospf_intf_config
+
+    - name: Remove OSPF interface configuration
+      comware_ospf_intf:
+        name: "{{ interface }}"
+        state: default
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: ospf_intf_removal
+
+    - name: Verify OSPF interface removal
+      debug:
+        var: ospf_intf_removal

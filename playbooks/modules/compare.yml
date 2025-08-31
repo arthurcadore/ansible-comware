@@ -1,15 +1,14 @@
 ---
+- name: Comware Compare testing
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware compare
-    hosts: test1 test2
-    gather_facts: no
-    connection: local
-
-    vars:
-      username: test
-      password: admin123456
-
-    tasks:
-      - name: compare 
-        comware_compare: cmd='dis curr conf | include ssh' result='/root/pycw7-ansible-master/gqy/result.txt' 
-                   username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+  tasks:
+    - name: Compare configuration with SSH settings
+      comware_compare:
+        cmd: 'dis curr conf'
+        result: '/shared/example.conf'
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"

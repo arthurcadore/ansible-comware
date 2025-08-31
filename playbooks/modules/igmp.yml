@@ -1,24 +1,59 @@
 ---
+- name: Comware IGMP Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware igmp
-    hosts: test1
-    gather_facts: no
-    connection: local
+  tasks:
+    - name: Enable IGMP and set version
+      comware_igmp:
+        name: GigabitEthernet1/0/2
+        igstate: enabled
+        version: version1
+        state: present
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
 
-    vars:
-      username: test
-      password: admin123456
+    - name: Disable IGMP on interface
+      comware_igmp:
+        name: GigabitEthernet1/0/2
+        igstate: disabled
+        state: absent
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
 
-    tasks:
-      # create IGMP and configure IGMP version
-      - comware_igmp: name=GigabitEthernet1/0/2 igstate=enabled version=version1 state=present username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      # delete IGMP ,delete IGMP version
-      - comware_igmp: name=GigabitEthernet1/0/2 igstate=disabled state=absent username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      # configure PIM mode
-      -  comware_igmp: name=GigabitEthernet1/0/2 mode=dm state=present username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      # delete PIM mode
-      -  comware_igmp: name=GigabitEthernet1/0/2 mode=dm state=absent username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      # configure IMGP-Snooping
-      - comware_igmp: snstate=enable state=present username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      # delete IMGP-Snooping
-      - comware_igmp: snstate=disable state=absent username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Configure PIM Dense Mode
+      comware_igmp:
+        name: GigabitEthernet1/0/2
+        mode: dm
+        state: present
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+
+    - name: Remove PIM Dense Mode
+      comware_igmp:
+        name: GigabitEthernet1/0/2
+        mode: dm
+        state: absent
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+
+    - name: Enable IGMP Snooping
+      comware_igmp:
+        snstate: enable
+        state: present
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+
+    - name: Disable IGMP Snooping
+      comware_igmp:
+        snstate: disable
+        state: absent
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"

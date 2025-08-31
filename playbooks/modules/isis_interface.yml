@@ -1,19 +1,44 @@
 ---
+- name: Comware IS-IS Interface Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware isis_interface
-    hosts: test1
-    gather_facts: no
-    connection: local
+  tasks:
+    - name: Configure IS-IS interface settings
+      comware_isis_interface:
+        name: vlan-interface30
+        isisID: 4
+        level: level-2
+        networkType: p2p
+        cost: 5
+        routerid: level-2
+        silent: true
+        state: present
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: isis_config
 
-    vars:
-      username: test
-      password: admin123456
+    - name: Verify IS-IS configuration
+      debug:
+        var: isis_config
 
-    tasks:
-            # create sisi 4 and releated params.
-      - comware_isis_interface: name=vlan-interface30 isisID=4 level=level-2 networkType=p2p cost=5 routerid=level-2 silent=true state=present 
-                      username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      
-      # delete isis 4
-      - comware_isis_interface: name=vlan-interface30 isisID=4 level=level-2 networkType=p2p cost=5 routerid=level-2 silent=true state=absent 
-                      username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Remove IS-IS configuration
+      comware_isis_interface:
+        name: vlan-interface30
+        isisID: 4
+        level: level-2
+        networkType: p2p
+        cost: 5
+        routerid: level-2
+        silent: true
+        state: absent
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: isis_removal
+
+    - name: Verify IS-IS removal
+      debug:
+        var: isis_removal

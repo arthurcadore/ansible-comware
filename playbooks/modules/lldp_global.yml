@@ -1,16 +1,30 @@
 ---
 
-  - name: Comware lldp_global
-    hosts: test1 test2
-    gather_facts: no
-    connection: local
+- name: Comware LLDP Global Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+  tasks:
+    - name: Enable LLDP globally
+      comware_lldp_global:
+        state: enabled
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: enable_lldp
 
-    vars:
-      username: test
-      password: admin123456
+    - name: Verify LLDP global enable
+      debug:
+        var: enable_lldp
 
-    tasks:
-      - name: manage lldp global enable 
-        comware_lldp_global: state=enabled username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      - name: manage lldp global disable 
-        comware_lldp_global: state=disabled username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    # - name: Disable LLDP globally
+    #   comware_lldp_global:
+    #     state: disabled
+    #     username: "{{ username }}"
+    #     password: "{{ password }}"
+    #     hostname: "{{ inventory_hostname }}"
+    #   register: disable_lldp
+
+    # - name: Verify LLDP global disable
+    #   debug:
+    #     var: disable_lldp

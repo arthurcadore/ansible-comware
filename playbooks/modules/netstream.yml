@@ -1,16 +1,57 @@
 ---
+- name: Comware NetStream Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
 
-  - name: Comware netstream
-    hosts: test1 test2
-    gather_facts: no
-    connection: local
+  vars:
+    netstream_params:
+      netstream: enable
+      rate: 10
+      timeout: 1
+      max_entry: 2
+      vxlan_udp: 8000
+      aggregation: prefix
+      host: 192.168.1.43
+      udp: 29
 
-    vars:
-      username: test
-      password: admin123456
+  tasks:
+    - name: Configure NetStream settings
+      comware_netstream:
+        netstream: "{{ netstream_params.netstream }}"
+        rate: "{{ netstream_params.rate }}"
+        timeout: "{{ netstream_params.timeout }}"
+        max_entry: "{{ netstream_params.max_entry }}"
+        vxlan_udp: "{{ netstream_params.vxlan_udp }}"
+        aggregation: "{{ netstream_params.aggregation }}"
+        host: "{{ netstream_params.host }}"
+        udp: "{{ netstream_params.udp }}"
+        state: present
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: netstream_config
 
-    tasks:
-      # netstream config
-      - comware_netstream: netstream=enable rate=10 timeout=1 max_entry=2 vxlan_udp=8000 aggregation=prefix host=192.168.1.43 udp=29 state=present username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-    # delete netstream config
-      - comware_netstream: netstream=enable rate=10 timeout=1 max_entry=2 vxlan_udp=8000 aggregation=prefix host=192.168.1.43 udp=29 state=absent username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Verify NetStream configuration
+      debug:
+        var: netstream_config
+
+    - name: Remove NetStream configuration
+      comware_netstream:
+        netstream: "{{ netstream_params.netstream }}"
+        rate: "{{ netstream_params.rate }}"
+        timeout: "{{ netstream_params.timeout }}"
+        max_entry: "{{ netstream_params.max_entry }}"
+        vxlan_udp: "{{ netstream_params.vxlan_udp }}"
+        aggregation: "{{ netstream_params.aggregation }}"
+        host: "{{ netstream_params.host }}"
+        udp: "{{ netstream_params.udp }}"
+        state: absent
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      register: netstream_removal
+
+    - name: Verify NetStream removal
+      debug:
+        var: netstream_removal
