@@ -1,17 +1,95 @@
 ---
+- name: SNMP Community Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+  
+  # This playbook manages SNMP community strings on Comware devices
+  # WARNING: SNMP community strings are sensitive information. Handle with care.
 
-  - name: Comware snmp_community
-    hosts: test1
-    gather_facts: no
-    connection: local
+  vars:
+    # SNMP community configuration
+    snmp_communities:
+      - name: "intelbras123"
+        access_right: "read"
+        mib_view: "ViewDefault"
+        acl_number: 2000
+        state: "present"
+      - name: "intelbras456"
+        access_right: "write"
+        mib_view: "ViewDefault"
+        acl_number: 2000
+        state: "present"
+    
+    # Set to true to apply changes
+    apply_changes: false
 
-    vars:
-      username: test
-      password: admin123456
+  tasks:
+    - name: Validate SNMP community parameters
+      assert:
+        that:
+          - item.name | length > 0
+          - item.access_right in ['read', 'write']
+          - item.state in ['present', 'absent']
+          - item.acl_number | int >= 2000 and item.acl_number | int <= 3999
+        fail_msg: >
+          Invalid SNMP community parameters for {{ item.name }}. Check:
+          - name must not be empty
+          - access_right must be 'read' or 'write'
+          - state must be 'present' or 'absent'
+          - acl_number must be between 2000 and 3999
+      loop: "{{ snmp_communities }}"
+      run_once: true
+      tags: always
 
-    tasks:
-      - name: "Config SNMP community"
-        comware_snmp_community: state=present access_right=read community_mib_view=view community_name=ansible_gqy acl_number=3000 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        
-      - name: "Undo SNMP community"
-        comware_snmp_community: state=absent access_right=write community_mib_view=view community_name=ansible_gqy acl_number=3000 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Display SNMP community configuration plan
+      debug:
+        msg: |
+          SNMP Community Configuration Plan:
+          - Device: {{ inventory_hostname }}
+          - Changes Allowed: {{ apply_changes | ternary('YES', 'NO (set apply_changes: true)') }}
+          - Communities to configure:
+          {% for comm in snmp_communities %}
+          {% if comm.state == 'present' %}
+            - {{ comm.name }} ({{ comm.access_right }}, ACL: {{ comm.acl_number }}, View: {{ comm.mib_view }})
+          {% else %}
+            - Remove community: {{ comm.name }}
+          {% endif %}
+          {% endfor %}
+      changed_when: false
+      tags: always
+
+    - name: Configure SNMP communities
+      when: apply_changes | bool
+      comware_snmp_community:
+        community_name: "{{ item.name }}"
+        access_right: "{{ item.access_right }}"
+        community_mib_view: "{{ item.mib_view }}"
+        acl_number: "{{ item.acl_number }}"
+        state: "{{ item.state }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      loop: "{{ snmp_communities }}"
+      register: snmp_config
+      no_log: true
+      tags: config
+
+    - name: Display SNMP configuration result
+      when: apply_changes | bool
+      debug:
+        msg: >
+          SNMP Community Configuration Result:
+          - Changed: {{ snmp_config is changed | ternary('YES', 'NO') }}
+          - Communities configured: {{ snmp_communities | map(attribute='name') | list | join(', ') }}
+      changed_when: snmp_config is changed
+      tags: always
+
+    - name: Verify SNMP community configuration (dry-run)
+      when: not apply_changes | bool
+      debug:
+        msg: >
+          This is a dry-run. No changes were made.
+          Set apply_changes: true to apply the SNMP community configuration.
+      changed_when: false
+      tags: always

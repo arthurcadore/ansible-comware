@@ -1,35 +1,146 @@
 ---
+- name: SNMP Group Configuration
+  hosts: all
+  gather_facts: no
+  connection: local
+  
+  # This playbook manages SNMP group configurations on Comware devices
+  # Supports both SNMPv2c and SNMPv3 group configurations
 
-  - name: Comware snmp_group
-    hosts: test1
-    gather_facts: no
-    connection: local
+  vars:
+    # SNMP group configurations
+    snmp_groups:
+      # SNMPv2c group example
+      - name: "admin_group_v2"
+        version: "v2c"
+        security_level: "noAuthNoPriv"
+        acl_number: 2000
+        read_view: "ViewDefault"
+        write_view: "ViewDefault"
+        notify_view: ""
+        state: "present"
+      
+      # SNMPv3 group example (authentication only)
+      - name: "admin_group_v3_auth"
+        version: "v3"
+        security_level: "authentication"
+        acl_number: 2001
+        read_view: "ViewDefault"
+        write_view: ""
+        notify_view: ""
+        state: "present"
+      
+      # SNMPv3 group example (privacy)
+      - name: "admin_group_v3_priv"
+        version: "v3"
+        security_level: "privacy"
+        acl_number: 2002
+        read_view: "ViewDefault"
+        write_view: ""
+        notify_view: ""
+        state: "present"
+    
+    # Set to true to apply changes
+    apply_changes: false
 
-    vars:
-      username: test
-      password: admin123456
+  tasks:
+    - name: Validate SNMP group parameters
+      assert:
+        that:
+          - item.name | length > 0
+          - item.version in ['v2c', 'v3']
+          - item.security_level in ['noAuthNoPriv', 'authentication', 'privacy']
+          - item.acl_number | int >= 2000 and item.acl_number | int <= 3999
+          - item.state in ['present', 'absent']
+        fail_msg: >
+          Invalid SNMP group parameters for {{ item.name }}. Check:
+          - name must not be empty
+          - version must be 'v2c' or 'v3'
+          - security_level must be one of: noAuthNoPriv, authentication, privacy
+          - acl_number must be between 2000 and 3999
+          - state must be 'present' or 'absent'
+      loop: "{{ snmp_groups }}"
+      run_once: true
+      tags: always
 
-    tasks:
-      - name: Config SNMP group
-        comware_snmp_group: state=present version=v2c group_name=wdz_group security_level=noAuthNoPriv acl_number=2000 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        
-      - name: Undo SNMP group
-        comware_snmp_group: state=absent  version=v2c group_name=wdz_group security_level=noAuthNoPriv acl_number=2000 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-          
-      - name: Config SNMP V3 group
-        comware_snmp_group: state=present group_name=test_wl version=v3 security_level=authentication  acl_number=3000 write_view='testv3c' username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-            
-      - name: Undo SNMP V3 group
-        comware_snmp_group: state=absent group_name=test_wl version=v3 security_level=authentication  acl_number=3000 write_view='testv3c' username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        
-      - name: Config SNMP group
-        comware_snmp_group: state=present version=v2c group_name=wdz_group security_level=authentication acl_number=2000 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        
-        register: data
-        ignore_errors: true
-        tags: fail
+    - name: Display SNMP group configuration plan
+      debug:
+        msg: |
+          SNMP Group Configuration Plan:
+          - Device: {{ inventory_hostname }}
+          - Changes Allowed: {{ apply_changes | ternary('YES', 'NO (set apply_changes: true)') }}
+          - Groups to configure:
+          {% for group in snmp_groups %}
+          {% if group.state == 'present' %}
+            - {{ group.name }} ({{ group.version }}, {{ group.security_level }}, ACL: {{ group.acl_number }})
+          {% else %}
+            - Remove group: {{ group.name }}
+          {% endif %}
+          {% endfor %}
+      changed_when: false
+      tags: always
 
-      - assert:
-          that:
-            - data.failed == true
-        tags: fail
+    - name: Configure SNMP groups
+      when: apply_changes | bool
+      comware_snmp_group:
+        group_name: "{{ item.name }}"
+        version: "{{ item.version }}"
+        security_level: "{{ item.security_level }}"
+        acl_number: "{{ item.acl_number }}"
+        read_view: "{{ item.read_view | default(omit) }}"
+        write_view: "{{ item.write_view | default(omit) }}"
+        notify_view: "{{ item.notify_view | default(omit) }}"
+        state: "{{ item.state }}"
+        username: "{{ username }}"
+        password: "{{ password }}"
+        hostname: "{{ inventory_hostname }}"
+      loop: "{{ snmp_groups }}"
+      register: snmp_group_config
+      no_log: true
+      tags: config
+
+    - name: Display SNMP group configuration result
+      when: apply_changes | bool
+      debug:
+        msg: >
+          SNMP Group Configuration Result:
+          - Changed: {{ snmp_group_config is changed | ternary('YES', 'NO') }}
+          - Groups configured: {{ snmp_groups | selectattr('state', 'equalto', 'present') | map(attribute='name') | list | join(', ') }}
+          - Groups removed: {{ snmp_groups | selectattr('state', 'equalto', 'absent') | map(attribute='name') | list | join(', ') }}
+      changed_when: snmp_group_config is changed
+      tags: always
+
+    - name: Verify SNMP group configuration (dry-run)
+      when: not apply_changes | bool
+      debug:
+        msg: >
+          This is a dry-run. No changes were made.
+          Set apply_changes: true to apply the SNMP group configuration.
+      changed_when: false
+      tags: always
+
+    - name: Validate invalid SNMP group configuration (v2c with authentication)
+      when: not apply_changes | bool
+      block:
+        - name: Attempt invalid SNMPv2c group with authentication
+          comware_snmp_group:
+            group_name: "invalid_group"
+            version: "v2c"
+            security_level: "authentication"  # Invalid for v2c
+            acl_number: 2000
+            state: "present"
+            username: "{{ username }}"
+            password: "{{ password }}"
+            hostname: "{{ inventory_hostname }}"
+          register: invalid_config
+          ignore_errors: true
+          no_log: true
+          tags: test
+
+        - name: Verify invalid configuration was rejected
+          assert:
+            that:
+              - invalid_config.failed == true
+            success_msg: "Invalid SNMPv2c configuration was rejected (as expected)"
+            fail_msg: "Invalid SNMPv2c configuration was unexpectedly accepted"
+          tags: test

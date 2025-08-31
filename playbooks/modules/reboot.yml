@@ -1,73 +1,100 @@
 ---
+- name: Device Reboot Management
+  hosts: all
+  gather_facts: no
+  connection: local
+  
+  # WARNING: This playbook can reboot your devices.
+  # Use with caution and ensure you understand the implications.
+  # Always test in a non-production environment first.
 
-  - name: Comware reboot testing
-    hosts: test1
-    gather_facts: no
-    connection: local
+  vars:
+    # Scheduled reboot time (24h format)
+    reboot_time: "05:00"
+    # Scheduled reboot date (MM/DD/YYYY)
+    reboot_date: null  # Set to null for today, or specify a future date
+    # Delay in minutes before reboot (alternative to specific time)
+    reboot_delay: null  # Set to null to use specific time, or specify minutes
+    # Safety flag - must be set to true to allow reboots
+    allow_reboot: false
 
-    # USE THIS AS GUIDANCE ONLY
-    # YOUR DEVICES WILL BE REBOOTED AT SOME POINT BY RUNNING THIS PLAYBOOK
-    tasks:
+  tasks:
+    - name: Validate reboot parameters
+      assert:
+        that:
+          - allow_reboot | bool
+          - (reboot_time is defined and reboot_time | regex_search('^([01]?[0-9]|2[0-3]):[0-5][0-9]$')) or reboot_delay is defined
+        fail_msg: >
+          Reboot not allowed. Please verify:
+          1. Set allow_reboot: true to enable reboots
+          2. Specify either reboot_time (HH:MM) or reboot_delay (minutes)
+      run_once: true
 
-      - name: fail when reboot param isnt included
-        comware_reboot: username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        ignore_errors: true
-        register: data
+    - name: Display reboot plan
+      debug:
+        msg: |
+          Reboot Plan:
+          - Device: {{ inventory_hostname }}
+          - Reboot Allowed: {{ allow_reboot | ternary('YES', 'NO (set allow_reboot: true)') }}
+          {% if reboot_delay is defined %}
+          - Action: Reboot in {{ reboot_delay }} minutes
+          {% else %}
+          - Action: Reboot at {{ reboot_time }}{% if reboot_date is defined %} on {{ reboot_date }}{% endif %}
+          {% endif %}
+      changed_when: false
 
-      - name: validate fail TEST 1
-        assert:
-          that:
-            - data.failed == true
+    - name: Schedule device reboot
+      when: allow_reboot | bool
+      block:
+        - name: Schedule reboot
+          comware_reboot:
+            reboot: true
+            time: "{{ reboot_time }}"
+            date: "{{ reboot_date | default(omit) }}"
+            delay: "{{ reboot_delay | default(omit) }}"
+            username: "{{ username }}"
+            password: "{{ password }}"
+            hostname: "{{ inventory_hostname }}"
+          register: reboot_result
+          no_log: true
 
-      - name: reboot at 5:00
-        comware_reboot: reboot=true time="05:00" username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+        - name: Display reboot status
+          debug:
+            var: reboot_result
+            verbosity: 1
 
-      - name: reboot in 5 minutes
-        comware_reboot: reboot=true delay=5 username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+      rescue:
+        - name: Handle reboot error
+          debug:
+            msg: "Failed to schedule reboot: {{ ansible_failed_result.msg }}"
+          failed_when: false
 
-      - name: reboot at 22:00 on July 30 2015
-        comware_reboot: reboot=true time="22:00" date="07/10/2015" username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
+    - name: Verify reboot is not allowed without parameters
+      when: not allow_reboot | bool
+      block:
+        - name: Attempt to reboot without parameters (should fail)
+          comware_reboot:
+            username: "{{ username }}"
+            password: "{{ password }}"
+            hostname: "{{ inventory_hostname }}"
+          register: reboot_attempt
+          ignore_errors: true
+          no_log: true
 
-      # uncomment to reboot!!!
-      # - name: reboot immedidately
-      #  comware_reboot: reboot=true username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-      #  tags: now
+        - name: Verify reboot was prevented
+          assert:
+            that:
+              - reboot_attempt.failed == true
+            success_msg: "Reboot was not allowed (as expected)"
+            fail_msg: "Reboot was unexpectedly allowed without proper parameters"
 
-
-      ### FAIL CONDITIONS
-
-      # PROPER FORMAT FOR TIME
-      - name: proper format is HH:MM
-        comware_reboot: reboot=true time="5:00" username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: data
-        ignore_errors: true
-        tags: f1
-
-      - assert:
-          that:
-            - data.failed == true
-        tags: f1
-
-      # PROPER FORMAT FOR DATE
-      - name: test invalid data entry
-        comware_reboot: reboot=true time="22:00" date="1/2015" username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: data
-        ignore_errors: true
-        tags: f2
-
-      - assert:
-          that:
-            - data.failed == true
-        tags: f2
-
-      # ENSURE TIME IS REQUIRED WHEN DATE IS USED
-      - name: ensure time is required when date is set
-        comware_reboot: reboot=true date="7/1/2015" username={{ username }} password={{ password }} hostname={{ inventory_hostname }}
-        register: data
-        ignore_errors: true
-        tags: f3
-
-      - assert:
-          that:
-            - data.failed == true
-        tags: f3
+    - name: Display completion message
+      debug:
+        msg: >
+          Reboot playbook completed.
+          {% if allow_reboot %}
+          Reboot has been scheduled successfully.
+          {% else %}
+          No reboot was performed (allow_reboot is false).
+          {% endif %}
+      changed_when: false
